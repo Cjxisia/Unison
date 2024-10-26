@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Pagination Example</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .button {
+            padding: 10px;
+            margin: 2px;
+            border: none;
+            background-color: #f0f0f0;
+            cursor: pointer;
+            display: inline-block;
+        }
+        .active {
+            background-color: Red;
+            color: White;
+        }
+        .pagination-container {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        #data-table {
+            border-collapse: collapse; /* Merge borders of adjacent cells */
+            width: 100%; /* Optional: Makes the table full-width */
+        }
+
+        #data-table th, #data-table td {
+            border: 1px solid #ddd; /* Adds a light gray border */
+            padding: 8px; /* Adds some padding for better spacing */
+            text-align: left; /* Aligns text to the left */
+        }
+
+        #data-table th {
+            background-color: #f2f2f2; /* Light gray background for header */
+            font-weight: bold; /* Makes the header text bold */
+        }
+    </style>
+    <script>
+        let chartInstance = null;
+        let currentPage = 1;
+        let totalPages = 88;
+        let currentButtonType = 1;
+
+        function loadPage(pageNumber) {
+            console.log("Loading page:", pageNumber);
+            currentPage = pageNumber;
+
+            fetch('/Distance', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ currentPage: pageNumber, buttonType: currentButtonType })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok: ' + response.statusText);
+                }
+                return response.text();
+            })
+            .then(html => {
+                document.getElementById('content').innerHTML = html;
+                const dates = Array.from(document.querySelectorAll('.data-date')).map(el => el.textContent);
+                const distances = Array.from(document.querySelectorAll('.data-distance')).map(el => parseFloat(el.textContent));
+                const temperatures = Array.from(document.querySelectorAll('.data-temperature')).map(el => parseFloat(el.textContent));
+
+                const lastTubines = Array.from(document.querySelectorAll('.data-last-tubine')).map(el => el.textContent);
+                const lastFloors = Array.from(document.querySelectorAll('.data-last-floor')).map(el => parseInt(el.textContent));
+                const lastNumbers = Array.from(document.querySelectorAll('.data-last-number')).map(el => parseInt(el.textContent));
+                const lastDistances = Array.from(document.querySelectorAll('.data-last-distance')).map(el => parseFloat(el.textContent));
+
+                const refTubines = Array.from(document.querySelectorAll('.data-ref-tubine')).map(el => el.textContent);
+                const refFloors = Array.from(document.querySelectorAll('.data-ref-floor')).map(el => parseInt(el.textContent));
+                const refNumbers = Array.from(document.querySelectorAll('.data-ref-number')).map(el => parseInt(el.textContent));
+                const refDistances = Array.from(document.querySelectorAll('.data-ref-distance')).map(el => parseFloat(el.textContent));
+
+                loadChart(dates, distances, temperatures);
+                updatePagination();
+
+                updateTable(lastDistances, refDistances, lastNumbers, refNumbers);
+            })
+            .catch(error => console.error('Error loading page:', error));
+        }
+
+        function loadChart(dates, distances, temperatures) {
+            const ctx = document.getElementById('myChart').getContext('2d');
+
+            if (chartInstance) {
+               chartInstance.destroy();
+            }
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [
+                        {
+                            label: 'Distance',
+                            data: distances,
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            fill: false
+                        },
+                        {
+                            label: 'Temperature',
+                            data: temperatures,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    scales: {
+                        x: { title: { display: true, text: 'Date' } },
+                        y: { title: { display: true, text: 'Value' } }
+                    }
+                }
+            });
+        }
+
+        function updatePagination() {
+            const paginationContainer = document.getElementById('pagination-container');
+            paginationContainer.innerHTML = '';
+
+            // Ellipsis logic for first button
+            if (currentPage > 8) {
+                const firstButton = document.createElement('button');
+                firstButton.className = 'button';
+                firstButton.innerText = '1';
+                firstButton.onclick = () => loadPage(1);
+                paginationContainer.appendChild(firstButton);
+                paginationContainer.appendChild(document.createTextNode('...'));
+            }
+
+            const startPage = Math.max(1, currentPage - 7);
+            const endPage = Math.min(totalPages, startPage + 14);
+
+            for (let page = startPage; page <= endPage; page++) {
+                const button = document.createElement('button');
+                button.className = 'button';
+                button.innerText = page;
+                button.onclick = () => loadPage(page);
+                if (page === currentPage) {
+                    button.classList.add('active');
+                }
+                paginationContainer.appendChild(button);
+            }
+
+            // Ellipsis logic for last button
+            if (currentPage < totalPages - 7) {
+                paginationContainer.appendChild(document.createTextNode('...'));
+                const lastButton = document.createElement('button');
+                lastButton.className = 'button';
+                lastButton.innerText = totalPages;
+                lastButton.onclick = () => loadPage(totalPages);
+                paginationContainer.appendChild(lastButton);
+            }
+        }
+
+        function setTotalPages(num) {
+            currentButtonType = num; // 현재 선택된 버튼 타입 저장
+            totalPages = num === 1 ? 88 : 90; // 버튼 타입에 따라 총 페이지 수 설정
+            updatePagination(); // 페이지 버튼 업데이트
+            loadPage(1); // 첫 페이지 로드
+
+            // 강조 처리
+            const buttons = document.querySelectorAll('.button');
+            buttons.forEach((button, index) => {
+                if (index < 3) {
+                    button.classList.remove('active');
+                    if (index + 1 === num) {
+                        button.classList.add('active');
+                    }
+                }
+            });
+        }
+
+        function updateTable(lastDistances, refDistances, lastNumbers, refNumbers) {
+            const tableBody = document.getElementById('table-body');
+            tableBody.innerHTML = ''; // Clear the existing table content
+
+            const dataMap = {};
+
+            lastNumbers.forEach((number, index) => {
+                dataMap[number] = { lastDistance: lastDistances[index] };
+            });
+
+            refNumbers.forEach((number, index) => {
+                const refDistance = refDistances[index];
+                if (dataMap[number]) {
+                    const lastDistance = dataMap[number].lastDistance;
+                    const difference = refDistance - lastDistance; // Calculate the difference (Ref - Last)
+
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${number}</td>                    <!-- Number column -->
+                        <td>${refDistance.toFixed(2)}</td>    <!-- Ref Distance -->
+                        <td>${lastDistance.toFixed(2)}</td>   <!-- Last Distance -->
+                        <td>${difference.toFixed(2)}</td>      <!-- Difference -->
+                    `;
+                    tableBody.appendChild(row);
+                }
+            });
+        }
+
+
+        window.onload = function() {
+            loadPage(1); // 첫 페이지 로드
+        }
+    </script>
+</head>
+<body>
+<div id="content" th:with="currentPage=${currentPage}, totalPages=88">
+    <div>
+        <button class="button" onclick="setTotalPages(1)">first</button>
+        <button class="button" onclick="setTotalPages(2)">second</button>
+        <button class="button" onclick="setTotalPages(3)">third</button>
+    </div>
+    <div id="pagination-container" class="pagination-container">
+        <!-- 페이지 버튼은 여기서 동적으로 생성됨 -->
+    </div>
+
+    <canvas id="myChart" width="400" height="200"></canvas>
+
+    <table id="data-table">
+        <thead>
+        <tr>
+            <th>Number</th>
+            <th>Ref Distance</th>
+            <th>Last Distance</th>
+            <th>Difference</th>
+        </tr>
+        </thead>
+        <tbody id = "table-body">
+        </tbody>
+    </table>
+
+    <div th:each="bolt : ${bolts}" style="display:none;">
+        <p>Date: <span class="data-date" th:text="${bolt.formattedDate}"></span></p>
+        <p>Distance: <span class="data-distance" th:text="${bolt.distance}"></span></p>
+        <p>Temperature: <span class="data-temperature" th:text="${bolt.temperature}"></span></p>
+    </div>
+
+    <div th:each="last : ${lasts}" style="display:none;">
+        <p>Last Tubine: <span class="data-last-tubine" th:text="${last.tubine}"></span></p>
+        <p>Last Floor: <span class="data-last-floor" th:text="${last.floor}"></span></p>
+        <p>Last Number: <span class="data-last-number" th:text="${last.number}"></span></p>
+        <p>Last Distance: <span class="data-last-distance" th:text="${last.distance}"></span></p>
+    </div>
+
+    <div th:each="ref : ${refs}" style="display:none;">
+        <p>Ref Tubine: <span class="data-ref-tubine" th:text="${ref.tubine}"></span></p>
+        <p>Ref Floor: <span class="data-ref-floor" th:text="${ref.floor}"></span></p>
+        <p>Ref Number: <span class="data-ref-number" th:text="${ref.number}"></span></p>
+        <p>Ref Distance: <span class="data-ref-distance" th:text="${ref.distance}"></span></p>
+    </div>
+</div>
+</body>
+</html>
